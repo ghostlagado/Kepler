@@ -1,132 +1,179 @@
-# Automação Comercial — PDV V2
+# Kepler
 
-Aplicação desktop desenvolvida em **Python** para automatizar rotinas operacionais baseadas em planilhas Excel. O sistema reúne ferramentas de processamento de informações comerciais em uma interface gráfica, reduzindo tarefas manuais e padronizando atualizações.
+Sistema desktop de automação operacional e inteligência comercial da RCHLO,
+reconstruído a partir do **PDV_V2** (PyQt5) em **Python + Flet**. O código
+legado está preservado, intacto, em `legacy/` e na branch `legacy`.
 
-> **Contexto:** o código disponível indica um projeto originalmente desenvolvido para apoiar rotinas internas da RCHLO S.A. Este README descreve funcionalidades identificadas no código, sem pressupor recursos não implementados.
+O projeto mantém as rotinas identificadas no legado — Hora a Hora,
+Participação, Vendas com Juros, E-Store e consulta de metas comerciais — e
+adota uma arquitetura em camadas em que as regras de negócio são testáveis
+sem depender da interface.
+
+## Status da migração
+
+| Módulo | Status |
+| --- | --- |
+| Hora a Hora | **Fluxo funcional** (processamento, tela, exportação XLSX, Dashboard) |
+| Vendas com Juros | Pendente (regras mapeadas no legado: `legacy/vj.py`) |
+| E-Store | Pendente (`legacy/estore.py`, `legacy/atualizarEstore.py`) |
+| Vendas por Colaborador / Participação | Pendente (`legacy/pa.py`) |
+| Login Firebase / administração de usuários | Pendente (decisão: não migrar sem demanda) |
+| Envio automático ao WhatsApp | Não implementado — será uma **API separada**, integrada depois |
+
+A coleta continua manual por design: o relatório de DCOs é copiado do sistema
+corporativo e colado (ou carregado de arquivo TXT), como no PDV_V2. Não há
+automação de navegador porque o legado não a possuía.
 
 ## ✨ Funcionalidades
 
-- **Hora a Hora (HxH):** processa informações inseridas na interface e atualiza a planilha de acompanhamento.
-- **Participação (PA):** interpreta dados operacionais e preenche os campos previstos na planilha parcial.
-- **Vendas com Juros (VJ):** processa informações de vendas e valores associados para atualizar a planilha de controle.
-- **E-Store:** consolida valores de metas a partir de planilhas e atualiza os dados usados nessa rotina.
-- **Metas comerciais:** consulta metas por data, filial e grupo de produtos.
-- **Autenticação:** tela de login integrada a um serviço Firebase Realtime Database.
-- **Área administrativa:** a interface inclui opções de gerenciamento de usuários, senha e nome, condicionadas ao usuário administrador.
+- **Hora a Hora (HxH):** cola o relatório bruto de DCOs, processa, exibe a
+  tabela por departamento (meta, realizado, gap, % da meta, ordenável) e
+  exporta planilha compatível com o histórico `horaxhora.xlsx`.
+- **Dashboard:** cartões de meta/realizado/gap por loja, gráfico de barras
+  realizado × meta por departamento e curva de evolução das coletas do dia,
+  com seletor de loja (todas as 17 lojas E-Store).
+- **Metas comerciais:** consulta por data, filial (Local) e grupo de operações.
+- **Preservação de dados:** uma coleta com erro nunca sobrescreve o último
+  relatório válido (snapshot com escrita atômica + histórico em JSONL).
+
+As rotinas PA/VJ/E-Store existem no legado e ainda não foram migradas; veja a
+tabela de status.
 
 ## 🧰 Tecnologias
 
 ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![PyQt5](https://img.shields.io/badge/PyQt5-41CD52?style=for-the-badge&logo=qt&logoColor=white)
+![Flet](https://img.shields.io/badge/Flet-132A64?style=for-the-badge&logo=flutter&logoColor=white)
 ![Excel](https://img.shields.io/badge/Excel-217346?style=for-the-badge&logo=microsoftexcel&logoColor=white)
-![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
 
-- **Interface gráfica:** PyQt5 com telas `.ui`.
-- **Planilhas:** `openpyxl`.
-- **Tema visual:** `qdarktheme`.
-- **Comunicação HTTP:** `requests`.
-- **Autenticação remota:** Firebase Realtime Database.
+- **Interface gráfica:** Flet (desktop e web) com tema escuro próprio
+  (paleta "Graphite + Red"), incluindo `flet-charts` nos gráficos do Dashboard.
+- **Planilhas:** `openpyxl` (leitura de metas e exportação XLSX).
+- **Testes:** `pytest` cobrindo domínio e serviços, sem tocar na UI.
+- **Legado (referência em `legacy/`):** PyQt5, `qdarktheme`, `requests`,
+  Firebase Realtime Database para autenticação.
 
-## 📁 Organização esperada
-
-A aplicação utiliza arquivos Python, interfaces gráficas e planilhas organizados por diretórios. Entre os caminhos referenciados no código estão:
+## 📁 Estrutura
 
 ```text
-PDV_V2/
-├── main.py                 # Inicialização e navegação
-├── metas.py                # Consulta de metas comerciais
-├── hxh.py                  # Processamento Hora a Hora
-├── pa.py                   # Processamento de Participação
-├── vj.py                   # Processamento de Vendas com Juros
-├── estore.py               # Consolidação de dados E-Store
-├── atualizarEstore.py      # Atualização da planilha E-Store
-├── uic/                    # Interfaces gráficas Qt (.ui)
-├── pln/                    # Planilhas usadas pelas rotinas
-├── metas/                  # Arquivos de metas comerciais
-└── txt/                    # Arquivos temporários de entrada
+src/
+├── main.py            # ponto de entrada Flet
+├── core/              # config de caminhos, paleta Graphite + Red, tema
+├── domain/            # departamentos/DCOs, cálculo do relatório, leitura de metas
+├── parsers/           # parser do texto bruto de DCOs (regra de posição por nº de palavras)
+├── services/          # pipeline: validar → processar → snapshot/histórico
+├── reports/           # exportação compatível com horaxhora.xlsx
+└── ui/                # shell com navegação lateral, Dashboard e Hora a Hora
+scripts/
+└── demo_simulator.py  # gerador de dados DEMO (100% fictícios)
+tests/                 # pytest: parsers, domínio, serviço, relatórios
+data/                  # (gitignored) brutos, snapshot, histórico e exportações
+metas/                 # (gitignored) metas/metas.xlsx
+legacy/                # PDV_V2 intacto para referência
 ```
 
-A estrutura acima resume os caminhos referenciados pelo código; a presença de todos os arquivos depende da versão e da configuração local.
-
-## 🚀 Configuração e execução
-
-### Pré-requisitos
-
-- Python 3.9 ou superior, compatível com as dependências do projeto.
-- Pip.
-- Arquivos de planilhas e interfaces necessários às rotinas.
-- Acesso ao Firebase configurado para o mecanismo de autenticação utilizado.
-
-### 1. Clone o repositório
-
-```bash
-git clone https://github.com/foxtec198/PDV_V2.git
-cd PDV_V2
-```
-
-### 2. Crie e ative um ambiente virtual
-
-**Windows (PowerShell):**
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-**Linux/macOS:**
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### 3. Instale as dependências principais
-
-```bash
-python -m pip install --upgrade pip
-python -m pip install PyQt5 QDarkTheme requests openpyxl
-```
-
-> Dependências adicionais podem ser necessárias conforme os módulos e arquivos da versão utilizada. Valide a execução em ambiente de desenvolvimento antes de distribuir a aplicação.
-
-### 4. Execute a aplicação
-
-Na raiz do projeto, com os arquivos necessários presentes:
-
-```bash
-python main.py
-```
+No legado, a organização correspondia a `main.py`, `hxh.py`, `pa.py`, `vj.py`,
+`estore.py`, `metas.py` mais as pastas `uic/` (telas `.ui`), `pln/`, `metas/`
+e `txt/` — tudo preservado dentro de `legacy/`.
 
 ## 📊 Arquivos de entrada e saída
 
-As rotinas dependem de planilhas e arquivos locais específicos, incluindo:
+- `metas/metas.xlsx` — base de metas comerciais (layout do PDV_V2: colunas
+  Data, Local, Grupo Operações, Meta; leitura a partir da linha 4).
+- Entrada Hora a Hora — texto bruto do relatório de DCOs, colado na interface
+  ou carregado de um `.txt` arquivado em `data/raw/hora_a_hora/`.
+- `data/hora_a_hora_snapshot.json` — último relatório válido (escrita atômica).
+- `data/hora_a_hora_history.jsonl` — uma linha por coleta válida; alimenta a
+  curva do Dashboard e o seletor de loja.
+- `data/exports/hora_a_hora_*.xlsx` — exportação compatível com a planilha
+  histórica (dados a partir da linha 7, fórmula `=E-C` para o gap).
 
-- `metas/metas.xlsx` — base de metas comerciais.
-- `pln/horaxhora.xlsx` — planilha da rotina Hora a Hora.
-- `pln/parcial.xlsx` — planilha da rotina Participação.
-- `pln/vj.xlsx` — planilha da rotina Vendas com Juros.
-- `pln/estore.xlsx` — planilha da rotina E-Store.
-- `txt/` — arquivos temporários usados para transferir os dados informados na interface aos módulos.
+Faça cópias de segurança das planilhas antes de rodar rotinas que gravam
+alterações, como no legado.
 
-Mantenha os nomes e caminhos compatíveis com as referências do código ou ajuste-os em conjunto. Faça cópias de segurança das planilhas antes de executar rotinas que gravam alterações.
+## 🔑 Regras de negócio herdadas (Hora a Hora)
+
+- Gap = Realizado − Meta do dia (fórmula `=E-C` da planilha histórica).
+- Total loja = soma dos departamentos.
+- Metas por data + loja + grupo de operações (`Perfumaria`→Beleza,
+  `Eletrônicos`→Tecnologia, `Infanto-Juvenil`→Infantil,
+  `Óculos e Bijuteria`→Óculos e Bijuterias).
+- Valor por DCO localizado pela contagem de palavras da linha
+  (10→5, 11→6, 12→7, 13→8, 14→5, 15→6, 16→7, 17→8), com `.` como milhar e
+  `,` como decimal.
+- Linha de formato não reconhecido aborta a coleta e mantém o último
+  relatório válido.
+- Classificação visual: abaixo da meta (vermelho), 100–105% (âmbar),
+  acima de 105% (verde).
+
+## 🚀 Ambiente e execução
+
+Requer Python ≥ 3.10 (o legado exigia ≥ 3.9 com PyQt5).
+
+```bash
+python -m venv venv
+venv/bin/pip install -e .          # ou: pip install flet flet-charts openpyxl
+venv/bin/flet run src/main.py      # desktop
+```
+
+Coloque a planilha de metas em `metas/metas.xlsx`. Sem a planilha ou sem
+dados reais, use o modo DEMO abaixo.
+
+## 🎭 Modo DEMO (dados fictícios)
+
+Sem acesso ao sistema corporativo, o app pode rodar com números simulados que
+crescem a cada hora — curva intradiária de shopping, fator próprio por
+loja/departamento, determinísticos por (data, loja, hora). **Todos os valores
+são 100% fictícios e servem apenas para apresentação:**
+
+```bash
+venv/bin/python scripts/demo_simulator.py --backfill   # dia completo até a hora atual
+venv/bin/python scripts/demo_simulator.py --loop       # deixa rodando: 1 coleta nova por hora
+```
+
+O app detecta a nova coleta sozinho e atualiza Dashboard/Hora a Hora em até
+60 segundos. Cada coleta válida alimenta o histórico
+(`data/hora_a_hora_history.jsonl`), usado pela curva de evolução e pelo
+seletor de loja (as 17 lojas E-Store têm coletas simuladas). Para zerar o
+demo: `rm -rf data/ metas/` (ambos gitignored; o `metas/metas.xlsx` real fica
+preservado em `legacy/metas/` e no histórico do git).
+
+## 🧪 Testes
+
+```bash
+venv/bin/python -m pytest -q
+```
+
+Cobrem parser de DCOs, agregação por departamento, gap/status/totais,
+leitura de metas, histórico/snapshot e preservação do último relatório
+válido em coletas inválidas.
 
 ## 🔐 Segurança e manutenção
 
-- Não armazene senhas, tokens ou credenciais em arquivos versionados.
-- Revise as regras de autenticação e as permissões do Firebase antes de disponibilizar o sistema em outros ambientes.
-- Evite compartilhar dados comerciais e pessoais reais em issues, commits ou capturas de tela.
-- Valide os arquivos de entrada e mantenha cópias de segurança das planilhas originais.
+- Não armazene senhas, tokens, chaves ou credenciais em arquivos versionados;
+  nada de informação sensível nos logs.
+- Não envie mensagens reais (ex.: WhatsApp) em testes sem autorização.
+- Não apresente dados fictícios do modo DEMO como se fossem reais.
+- Evite compartilhar dados comerciais ou pessoais reais em issues, commits ou
+  capturas de tela.
+- A pasta `legacy/` e a branch `legacy` são histórico preservado: nunca
+  sobrescrever, excluir ou reescrever o histórico do legado.
 
-## 🛣️ Evolução do projeto
+## ⚠️ Limitações conhecidas
 
-Melhorias técnicas possíveis:
+- Validação numérica contra o legado foi feita com dados de exemplo (os TXT
+  históricos do repo estavam vazios); conferir contra um dia real antes do uso.
+- Envio ao WhatsApp depende da API separada planejada; até lá, a entrega do
+  relatório continua manual.
+- Processamento roda no thread principal (abertura de `metas.xlsx` ~1s);
+  mover para background quando houver agendamento.
 
-- Centralizar as dependências em um arquivo `requirements.txt`.
-- Externalizar configurações e identificadores de filial.
-- Substituir caminhos relativos frágeis por caminhos resolvidos a partir da raiz do projeto.
-- Melhorar o tratamento de erros e os registros de execução.
-- Criar testes automatizados para o processamento e a atualização das planilhas.
-- Documentar o empacotamento e a distribuição para Windows.
+## 🛣️ Evolução
+
+O legado listava como melhorias desejáveis: centralizar dependências (feito —
+`pyproject.toml`), externalizar configurações e caminhos (feito — `src/core/config.py`),
+melhorar tratamento de erros (feito — pipeline com erros nomeados por linha),
+testes automatizados (feito) e documentar empacotamento. Próximos passos:
+API de envio WhatsApp, migração de PA/VJ/E-Store e agendamento de coletas.
 
 ## 👨‍💻 Autoria
 
